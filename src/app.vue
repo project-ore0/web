@@ -1,12 +1,11 @@
 <template>
   <div>
     <NuxtRouteAnnouncer />
-    <ControlPanel />
+    <NuxtPage />
   </div>
 </template>
 
 <script setup>
-import ControlPanel from '~/components/ControlPanel.vue';
 </script>
 
 <style>
