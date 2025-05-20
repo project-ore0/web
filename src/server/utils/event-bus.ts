@@ -49,4 +49,20 @@ export const WS_EVENTS = {
   CLIENT_COUNT: 'client_count',
   BATTERY_LEVEL: 'battery_level',
   DISTANCE_READING: 'distance_reading',
+  // New events for device management
+  REGISTER_DEVICE: 'register_device',
+  UNREGISTER_DEVICE: 'unregister_device',
+  LIST_DEVICES: 'list_devices',
+  ASSUME_DEVICE: 'assume_device',
+  DEVICE_ASSUMED: 'device_assumed',
+  LEAVE_DEVICE: 'leave_device',
+  DEVICE_LEFT: 'device_left',
 };
+
+// Device information interface
+export interface DeviceInfo {
+  id: string;
+  name: string;
+  isAssumed: boolean;
+  assumedBy?: string;
+}

@@ -1,70 +1,98 @@
 <template>
   <div class="control-panel">
-    <h2>ORE0 Control Panel</h2>
+    <div v-if="!selectedDevice" class="device-selection">
+      <h2>ORE0 Control Panel</h2>
+      <div class="device-list">
+        <h3>Available Devices</h3>
+        <div v-if="devices.length === 0" class="no-devices">
+          No devices available
+        </div>
+        <div v-else class="device-grid">
+          <div v-for="device in devices" :key="device.id" class="device-item"
+            :class="{ 'device-assumed': device.isAssumed }" @click="assumeDevice(device)">
+            <div class="device-name">{{ device.name }}</div>
+            <div class="device-status">{{ device.isAssumed ? 'In Use' : 'Available' }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="connection-status" :class="{ connected: isConnected }">
+        {{ isConnected ? 'Connected to Server' : 'Disconnected from Server' }}
+      </div>
+    </div>
 
-    <div class="status-section">
-      <h3>Vehicle Status</h3>
-      <div class="status-grid">
-        <div class="status-item">
-          <div class="status-label">Battery:</div>
-          <div class="status-value">{{ batteryLevel }}%</div>
-          <div class="battery-indicator">
-            <div class="battery-level" :style="{ width: `${batteryLevel}%`, backgroundColor: batteryColor }"></div>
+    <div v-else class="control-interface">
+      <!-- Full screen camera feed -->
+      <div class="camera-section">
+        <div class="camera-feed" ref="cameraFeed">
+          <img v-if="imageUrl" :src="imageUrl" alt="Camera Feed" />
+          <div v-else class="no-camera">No camera feed available</div>
+        </div>
+      </div>
+
+      <!-- Device representation at the bottom -->
+      <div class="device-representation">
+        <div class="device-info">
+          <div class="device-name">{{ selectedDevice.name }}</div>
+          <button @click="leaveDevice" class="leave-btn">Release Control</button>
+        </div>
+
+        <div class="device-status-grid">
+          <div class="status-item">
+            <div class="status-label">Battery:</div>
+            <div class="status-value">{{ batteryLevel }}%</div>
+            <div class="battery-indicator">
+              <div class="battery-level" :style="{ width: `${batteryLevel}%`, backgroundColor: batteryColor }"></div>
+            </div>
+          </div>
+
+          <div class="status-item">
+            <div class="status-label">Distance:</div>
+            <div class="status-value">{{ distance }} cm</div>
           </div>
         </div>
 
-        <div class="status-item">
-          <div class="status-label">Distance:</div>
-          <div class="status-value">{{ distance }} cm</div>
+        <div class="tracks-visualization">
+          <div class="track left-track" :class="getTrackClass('left')">
+            <div class="track-label">M1</div>
+            <div class="track-state">{{ motorStateText(motor1) }}</div>
+          </div>
+          <div class="track right-track" :class="getTrackClass('right')">
+            <div class="track-label">M2</div>
+            <div class="track-state">{{ motorStateText(motor2) }}</div>
+          </div>
         </div>
 
-        <div class="status-item">
-          <div class="status-label">Motor 1:</div>
-          <div class="status-value">{{ motorStateText(motor1) }}</div>
+        <div class="control-help">
+          <div class="key-guide">
+            <div class="key">Q</div>
+            <div class="key-desc">M1 Forward</div>
+          </div>
+          <div class="key-guide">
+            <div class="key">W</div>
+            <div class="key-desc">M1+M2 Forward</div>
+          </div>
+          <div class="key-guide">
+            <div class="key">E</div>
+            <div class="key-desc">M2 Forward</div>
+          </div>
+          <div class="key-guide">
+            <div class="key">A</div>
+            <div class="key-desc">M1 Backward</div>
+          </div>
+          <div class="key-guide">
+            <div class="key">S</div>
+            <div class="key-desc">M1+M2 Backward</div>
+          </div>
+          <div class="key-guide">
+            <div class="key">D</div>
+            <div class="key-desc">M2 Backward</div>
+          </div>
+          <div class="key-guide">
+            <div class="key">SPACE</div>
+            <div class="key-desc">Brake</div>
+          </div>
         </div>
-
-        <div class="status-item">
-          <div class="status-label">Motor 2:</div>
-          <div class="status-value">{{ motorStateText(motor2) }}</div>
-        </div>
       </div>
-    </div>
-
-    <div class="camera-section">
-      <h3>Camera Feed</h3>
-      <div class="camera-feed" ref="cameraFeed">
-        <img v-if="imageUrl" :src="imageUrl" alt="Camera Feed" />
-        <div v-else class="no-camera">No camera feed available</div>
-      </div>
-    </div>
-
-    <div class="control-section">
-      <h3>Vehicle Control</h3>
-      <div class="control-grid">
-        <button @mousedown="move('forward')" @mouseup="stop" @mouseleave="stop" class="control-btn forward-btn">
-          Forward
-        </button>
-
-        <button @mousedown="move('left')" @mouseup="stop" @mouseleave="stop" class="control-btn left-btn">
-          Left
-        </button>
-
-        <button @mousedown="stop" class="control-btn stop-btn">
-          Stop
-        </button>
-
-        <button @mousedown="move('right')" @mouseup="stop" @mouseleave="stop" class="control-btn right-btn">
-          Right
-        </button>
-
-        <button @mousedown="move('backward')" @mouseup="stop" @mouseleave="stop" class="control-btn backward-btn">
-          Backward
-        </button>
-      </div>
-    </div>
-
-    <div class="connection-status" :class="{ connected: isConnected }">
-      {{ isConnected ? 'Connected' : 'Disconnected' }}
     </div>
   </div>
 </template>
@@ -76,6 +104,10 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 const ws = ref(null);
 const isConnected = ref(false);
 
+// Device management
+const devices = ref([]);
+const selectedDevice = ref(null);
+
 // Vehicle status
 const batteryLevel = ref(0);
 const distance = ref(0);
@@ -84,34 +116,11 @@ const motor2 = ref(0);
 const imageUrl = ref('');
 
 // Message protocol constants
-const MSG_ID = {
-  UNKNOWN: 0,
-  MOTOR_STATE: 1,
-  TELEMETRY: 2,
-  CAMERA_CONTROL: 3,
-  CAMERA_CHUNK: 4,
-  MOTOR_CONTROL: 5,
-  MOVE_CONTROL: 6,
-  BATTERY_LEVEL: 7,
-  DISTANCE_READING: 8,
-};
-
 const MSG_MOTOR_STATE = {
   IDLE: 0,
   FORWARD: 1,
   BACKWARD: 2,
   BRAKE: 3,
-};
-
-const MSG_MOVE_CMD = {
-  M1_IDLE: 0,
-  M1_FWD: 1,
-  M1_BCK: 2,
-  M1_BRK: 3,
-  M2_IDLE: 4,
-  M2_FWD: 5,
-  M2_BCK: 6,
-  M2_BRK: 7,
 };
 
 // Computed properties
@@ -139,11 +148,18 @@ const connectWebSocket = () => {
   ws.value.onopen = () => {
     console.log('WebSocket connected');
     isConnected.value = true;
+
+    // Request device list
+    requestDeviceList();
   };
 
   ws.value.onclose = () => {
     console.log('WebSocket disconnected');
     isConnected.value = false;
+
+    // Reset state
+    selectedDevice.value = null;
+    devices.value = [];
 
     // Try to reconnect after a delay
     setTimeout(connectWebSocket, 3000);
@@ -160,62 +176,108 @@ const connectWebSocket = () => {
 };
 
 const handleMessage = (data) => {
-  const buffer = new Uint8Array(data);
+  // Handle binary messages (camera chunks)
+  if (data instanceof ArrayBuffer) {
+    try {
+      const buffer = new Uint8Array(data);
 
-  if (buffer.length < 3) {
-    console.error('Message too short');
-    return;
-  }
+      // Check if this is a camera chunk (message ID 4)
+      if (buffer[0] === 4 && buffer.length >= 3) {
+        const length = buffer[1] | (buffer[2] << 8);
+        const payload = buffer.slice(3);
 
-  const msgId = buffer[0];
-  const length = buffer[1] | (buffer[2] << 8);
-  const payload = buffer.slice(3);
-
-  if (payload.length !== length) {
-    console.error(`Payload length mismatch: expected ${length}, got ${payload.length}`);
-    return;
-  }
-
-  switch (msgId) {
-    case MSG_ID.TELEMETRY:
-      if (payload.length === 4) {
-        motor1.value = payload[0];
-        motor2.value = payload[1];
-        batteryLevel.value = payload[2];
-        distance.value = payload[3];
-      }
-      break;
-
-    case MSG_ID.CAMERA_CHUNK:
-      try {
-        // Check if the chunk length doesn't match the actual data length
         if (payload.length !== length) {
-          console.warn(`Chunk length mismatch: expected ${length}, got ${payload.length}. Using actual data length.`);
+          console.warn(`Expected payload length ${length}, but got ${payload.length}`);
+          return;
         }
-        
+
         if (imageUrl.value) {
           URL.revokeObjectURL(imageUrl.value);
         }
+
         const blob = new Blob([payload], { type: 'image/jpeg' });
         const url = URL.createObjectURL(blob);
         imageUrl.value = url;
-      } catch (error) {
-        console.error('Error processing camera chunk:', error);
       }
-      break;
-
-    case MSG_ID.BATTERY_LEVEL:
-      if (payload.length === 1) {
-        batteryLevel.value = payload[0];
+      // Handle telemetry binary message (message ID 2)
+      else if (buffer[0] === 2 && buffer.length >= 7) {
+        motor1.value = buffer[3];
+        motor2.value = buffer[4];
+        batteryLevel.value = buffer[5];
+        distance.value = buffer[6];
       }
-      break;
-
-    case MSG_ID.DISTANCE_READING:
-      if (payload.length === 1) {
-        distance.value = payload[0];
-      }
-      break;
+    } catch (error) {
+      console.error('Error processing binary message:', error);
+    }
+    return;
   }
+
+  // Handle JSON messages
+  try {
+    const message = JSON.parse(data);
+
+    switch (message.type) {
+      case 'device_list':
+        devices.value = message.devices || [];
+        break;
+
+      case 'device_assumed':
+        if (message.deviceId && message.deviceInfo) {
+          selectedDevice.value = message.deviceInfo;
+          console.log('Now controlling device:', selectedDevice.value.name);
+        }
+        break;
+
+      case 'telemetry':
+        if (message.data) {
+          motor1.value = message.data.motor1;
+          motor2.value = message.data.motor2;
+          batteryLevel.value = message.data.battery;
+          distance.value = message.data.distance;
+        }
+        break;
+
+      case 'error':
+        console.error('Server error:', message.message);
+        alert(`Error: ${message.message}`);
+        break;
+    }
+  } catch (error) {
+    console.error('Error parsing JSON message:', error);
+  }
+};
+
+const requestDeviceList = () => {
+  if (!ws.value || ws.value.readyState !== WebSocket.OPEN) return;
+
+  ws.value.send(JSON.stringify({
+    type: 'list_devices'
+  }));
+};
+
+const assumeDevice = (device) => {
+  if (device.isAssumed) {
+    alert('This device is already being controlled by another user.');
+    return;
+  }
+
+  if (!ws.value || ws.value.readyState !== WebSocket.OPEN) return;
+
+  ws.value.send(JSON.stringify({
+    type: 'assume_device',
+    deviceId: device.id
+  }));
+};
+
+const leaveDevice = () => {
+  if (!selectedDevice.value || !ws.value || ws.value.readyState !== WebSocket.OPEN) return;
+
+  ws.value.send(JSON.stringify({
+    type: 'leave_device'
+  }));
+
+  selectedDevice.value = null;
+  imageUrl.value = '';
 };
 
 const motorStateText = (state) => {
@@ -228,75 +290,65 @@ const motorStateText = (state) => {
   }
 };
 
-const sendMotorControl = (m1, m2) => {
-  if (!ws.value || ws.value.readyState !== WebSocket.OPEN) return;
+const getTrackClass = (track) => {
+  const motorState = track === 'left' ? motor1.value : motor2.value;
 
-  const buffer = new Uint8Array([
-    MSG_ID.MOTOR_CONTROL,
-    2, 0, // Length (2 bytes, little endian)
-    m1, m2 // Payload
-  ]);
-
-  ws.value.send(buffer);
-};
-
-const sendMoveControl = (cmd) => {
-  if (!ws.value || ws.value.readyState !== WebSocket.OPEN) return;
-
-  const buffer = new Uint8Array([
-    MSG_ID.MOVE_CONTROL,
-    1, 0, // Length (2 bytes, little endian)
-    cmd // Payload
-  ]);
-
-  ws.value.send(buffer);
-};
-
-const move = (direction) => {
-  switch (direction) {
-    case 'forward':
-      sendMotorControl(MSG_MOTOR_STATE.FORWARD, MSG_MOTOR_STATE.FORWARD);
-      break;
-    case 'backward':
-      sendMotorControl(MSG_MOTOR_STATE.BACKWARD, MSG_MOTOR_STATE.BACKWARD);
-      break;
-    case 'left':
-      sendMotorControl(MSG_MOTOR_STATE.BACKWARD, MSG_MOTOR_STATE.FORWARD);
-      break;
-    case 'right':
-      sendMotorControl(MSG_MOTOR_STATE.FORWARD, MSG_MOTOR_STATE.BACKWARD);
-      break;
+  switch (motorState) {
+    case MSG_MOTOR_STATE.FORWARD: return 'track-forward';
+    case MSG_MOTOR_STATE.BACKWARD: return 'track-backward';
+    case MSG_MOTOR_STATE.BRAKE: return 'track-brake';
+    default: return '';
   }
 };
 
-const stop = () => {
-  sendMotorControl(MSG_MOTOR_STATE.IDLE, MSG_MOTOR_STATE.IDLE);
+const sendControl = (action) => {
+  if (!selectedDevice.value || !ws.value || ws.value.readyState !== WebSocket.OPEN) return;
+
+  ws.value.send(JSON.stringify({
+    type: 'control',
+    action
+  }));
 };
 
 // Keyboard controls
 const handleKeyDown = (event) => {
-  switch (event.key) {
-    case 'ArrowUp':
-      move('forward');
+  if (!selectedDevice.value) return;
+
+  // Prevent default behavior for control keys
+  if (['q', 'w', 'e', 'a', 's', 'd', ' '].includes(event.key.toLowerCase())) {
+    event.preventDefault();
+  }
+
+  switch (event.key.toLowerCase()) {
+    case 'q':
+      sendControl('q');
       break;
-    case 'ArrowDown':
-      move('backward');
+    case 'w':
+      sendControl('w');
       break;
-    case 'ArrowLeft':
-      move('left');
+    case 'e':
+      sendControl('e');
       break;
-    case 'ArrowRight':
-      move('right');
+    case 'a':
+      sendControl('a');
+      break;
+    case 's':
+      sendControl('s');
+      break;
+    case 'd':
+      sendControl('d');
       break;
     case ' ': // Space
-      stop();
+      sendControl('space');
       break;
   }
 };
 
 const handleKeyUp = (event) => {
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
-    stop();
+  if (!selectedDevice.value) return;
+
+  if (['q', 'w', 'e', 'a', 's', 'd', ' '].includes(event.key.toLowerCase())) {
+    sendControl('release');
   }
 };
 
@@ -307,6 +359,18 @@ onMounted(() => {
   // Add keyboard event listeners
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
+
+  // Request device list periodically
+  const deviceListInterval = setInterval(() => {
+    if (isConnected.value && !selectedDevice.value) {
+      requestDeviceList();
+    }
+  }, 5000);
+
+  // Clean up interval on unmount
+  onUnmounted(() => {
+    clearInterval(deviceListInterval);
+  });
 });
 
 onUnmounted(() => {
@@ -327,10 +391,19 @@ onUnmounted(() => {
 
 <style scoped>
 .control-panel {
+  width: 100%;
+  height: 100vh;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Device selection screen */
+.device-selection {
   max-width: 800px;
   margin: 0 auto;
   padding: 20px;
-  font-family: Arial, sans-serif;
+  width: 100%;
 }
 
 h2 {
@@ -345,9 +418,7 @@ h3 {
   padding-bottom: 5px;
 }
 
-.status-section,
-.camera-section,
-.control-section {
+.device-list {
   background-color: #f9f9f9;
   border-radius: 8px;
   padding: 15px;
@@ -355,10 +426,110 @@ h3 {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.status-grid {
+.no-devices {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+}
+
+.device-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.device-item {
+  background-color: #fff;
+  border-radius: 4px;
+  padding: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.device-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.device-item.device-assumed {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.device-name {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.device-status {
+  font-size: 0.9em;
+  color: #666;
+}
+
+/* Control interface */
+.control-interface {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.camera-section {
+  flex: 1;
+  background-color: #000;
+  position: relative;
+}
+
+.camera-feed {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-feed img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.no-camera {
+  color: #fff;
+  font-size: 1.2em;
+}
+
+.device-representation {
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 15px;
+  position: relative;
+  z-index: 10;
+}
+
+.device-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.leave-btn {
+  background-color: #F44336;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.device-status-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 15px;
+  margin-bottom: 15px;
 }
 
 .status-item {
@@ -377,7 +548,7 @@ h3 {
 
 .battery-indicator {
   height: 10px;
-  background-color: #e0e0e0;
+  background-color: #444;
   border-radius: 5px;
   margin-top: 5px;
   overflow: hidden;
@@ -388,84 +559,87 @@ h3 {
   transition: width 0.3s ease, background-color 0.3s ease;
 }
 
-.camera-feed {
-  width: 100%;
-  height: 300px;
-  background-color: #000;
+.tracks-visualization {
   display: flex;
+  justify-content: space-between;
+  margin-bottom: 15px;
+}
+
+.track {
+  width: 48%;
+  height: 60px;
+  background-color: #333;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  position: relative;
   overflow: hidden;
-  border-radius: 4px;
 }
 
-.camera-feed img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+.track::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(45deg,
+      rgba(255, 255, 255, 0.1),
+      rgba(255, 255, 255, 0.1) 10px,
+      rgba(255, 255, 255, 0.2) 10px,
+      rgba(255, 255, 255, 0.2) 20px);
 }
 
-.no-camera {
-  color: #fff;
-  font-size: 1.2em;
-}
-
-.control-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  gap: 10px;
-  max-width: 300px;
-  margin: 0 auto;
-}
-
-.control-btn {
-  padding: 15px;
-  border: none;
-  border-radius: 4px;
-  background-color: #2196F3;
-  color: white;
+.track-label {
   font-weight: bold;
-  cursor: pointer;
-  transition: background-color 0.2s;
+  z-index: 1;
 }
 
-.control-btn:hover {
-  background-color: #0b7dda;
+.track-state {
+  font-size: 0.8em;
+  z-index: 1;
 }
 
-.control-btn:active {
-  background-color: #0a69b7;
+.track-forward {
+  background-color: #4CAF50;
 }
 
-.forward-btn {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.left-btn {
-  grid-column: 1;
-  grid-row: 2;
-}
-
-.stop-btn {
-  grid-column: 2;
-  grid-row: 2;
+.track-backward {
   background-color: #F44336;
 }
 
-.stop-btn:hover {
-  background-color: #d32f2f;
+.track-brake {
+  background-color: #FFC107;
 }
 
-.right-btn {
-  grid-column: 3;
-  grid-row: 2;
+.control-help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
 }
 
-.backward-btn {
-  grid-column: 2;
-  grid-row: 3;
+.key-guide {
+  display: flex;
+  align-items: center;
+  margin-right: 15px;
+}
+
+.key {
+  background-color: #444;
+  color: white;
+  padding: 5px 8px;
+  border-radius: 4px;
+  margin-right: 5px;
+  font-family: monospace;
+  min-width: 20px;
+  text-align: center;
+}
+
+.key-desc {
+  font-size: 0.9em;
 }
 
 .connection-status {
@@ -483,8 +657,18 @@ h3 {
 }
 
 @media (max-width: 600px) {
-  .status-grid {
+  .device-status-grid {
     grid-template-columns: 1fr;
+  }
+
+  .control-help {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .key-guide {
+    margin-right: 0;
+    margin-bottom: 5px;
   }
 }
 </style>

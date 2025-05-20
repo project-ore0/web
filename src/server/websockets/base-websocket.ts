@@ -21,7 +21,7 @@ export class BaseWS {
       this.clients.add(ws); // Add client
       
       ws.on('message', (message: Buffer, isBinary: boolean) => {
-        this.onMessage(message, isBinary);
+        this.onMessage(message, isBinary, ws);
       });
       
       ws.on('error', (error: Error) => {
@@ -65,7 +65,7 @@ export class BaseWS {
     console.log('WS client disconnected');
   }
 
-  onMessage(message: Buffer, isBinary: boolean): void {
+  onMessage(message: Buffer, isBinary: boolean, ws?: WebSocket): void {
     if (isBinary) {
       console.log('WS binary length:', message.length);
     } else {
