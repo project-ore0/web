@@ -81,7 +81,7 @@ export class BaseWS {
     console.log('WS closed');
   }
 
-  broadcast(data: Buffer, binary: boolean = true): void {
+  broadcast(data: Uint8Array, binary: boolean = true): void {
     this.clients.forEach((client) => {
       if (client.readyState === client.OPEN) {
         client.send(data, { binary });

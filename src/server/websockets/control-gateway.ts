@@ -15,12 +15,12 @@ export class ControlWS extends BaseWS {
 
   onConnection(ws: WebSocket, req: IncomingMessage): void {
     // Get client IP address from various possible headers or socket
-    const ip = 
-      req.headers['x-forwarded-for'] || 
+    const ip =
+      req.headers['x-forwarded-for'] ||
       req.headers['x-real-ip'] ||
       req.socket.remoteAddress ||
       'unknown';
-    
+
     console.log('ORE0 connected:', ip);
   }
 
