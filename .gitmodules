@@ -1,0 +1,4 @@
+[submodule "src/proto"]
+	path = src/proto
+	url = https://github.com/project-ore0/proto
+	branch = generated-v0.1.0
