@@ -1,0 +1,19 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - USERNAME=${USERNAME:-vscode}
+        - USER_UID=${USER_UID:-1000}
+        - USER_GID=${USER_GID:-1000}
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ~/.gitconfig:/home/${USERNAME}/.gitconfig:ro
+      - ~/.ssh:/home/${USERNAME}/.ssh:ro
+      - ~/.npmrc:/home/${USERNAME}/.npmrc:ro
+      - ..:/workspace:cached
+    command: bash -c "while true; do sleep 3; done"
